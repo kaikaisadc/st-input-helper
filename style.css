@@ -426,3 +426,20 @@
     margin: 10px 0;
     padding: 8px;
 }
+
+/* 工具栏横向滚动：窄屏/自定义按钮较多时保持单行，可左右滑动 */
+#input_helper_toolbar {
+    display: flex;
+    flex-wrap: nowrap;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+}
+
+#input_helper_toolbar > button {
+    flex: 0 0 auto;
+    touch-action: manipulation;
+}

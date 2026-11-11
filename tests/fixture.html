@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <title>Input Helper host stub</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; }
+        #chat { width: 520px; min-height: 80px; border: 1px solid #999; padding: 8px; }
+        .mes { border-bottom: 1px solid #ccc; padding: 6px; }
+        .mes_text textarea, #send_textarea { width: 480px; height: 80px; box-sizing: border-box; }
+        #settings, #world { margin-top: 16px; }
+        #input_helper_toolbar { display: flex; flex-wrap: nowrap; overflow-x: auto; width: 420px; }
+        #input_helper_toolbar button { flex: 0 0 auto; min-width: 55px; height: 32px; margin: 2px; }
+        #settings_textarea, #world_textarea { width: 480px; height: 50px; }
+        .display-none { display: none; }
+    </style>
+    <script>
+        window.customSymbols = [];
+        window.shortcuts = {
+            asterisk: 'Ctrl+Alt+A',
+            quotes: 'Ctrl+Alt+Q',
+            newline: 'Ctrl+Alt+N',
+            custom_0: 'Ctrl+Alt+C',
+        };
+        window.helperEnabled = true;
+        window.inputEvents = [];
+        window.lastEditor = null;
+
+        document.addEventListener('input', (event) => {
+            window.inputEvents.push({
+                id: event.target.id || event.target.className || event.target.tagName,
+                value: event.target.value,
+                bubbles: event.bubbles,
+            });
+        });
+    </script>
+</head>
+<body>
+    <div id="chat">
+        <div class="mes" mesid="0" ch_name="Char" is_user="false">
+            <div class="mesAvatarWrapper"></div>
+            <div class="mes_block">
+                <div class="ch_name"><span class="name_text">Char</span></div>
+                <div class="mes_buttons"><div class="mes_button mes_edit">edit</div></div>
+                <div class="mes_edit_buttons" style="display: none">
+                    <div class="mes_edit_done menu_button">done</div>
+                    <div class="mes_edit_cancel menu_button">cancel</div>
+                    <div class="mes_edit_delete menu_button">delete</div>
+                </div>
+                <div class="mes_text">first message</div>
+            </div>
+        </div>
+        <div class="mes" mesid="1" ch_name="User" is_user="true">
+            <div class="mesAvatarWrapper"></div>
+            <div class="mes_block">
+                <div class="ch_name"><span class="name_text">User</span></div>
+                <div class="mes_buttons"><div class="mes_button mes_edit">edit</div></div>
+                <div class="mes_edit_buttons" style="display: none"></div>
+                <div class="mes_text">second message</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="form_sheld">
+        <div id="send_form">
+            <div id="nonQRFormItems"></div>
+            <textarea id="send_textarea" name="text"></textarea>
+            <div id="qr--bar">
+                <div id="input_helper_toolbar" class="qr--buttons qr--color">
+                    <button type="button" id="input_asterisk_btn" class="qr--button menu_button" data-insert-action="asterisk" title="插入双星号" data-norefocus="true">**</button>
+                    <button type="button" id="input_quotes_btn" class="qr--button menu_button" data-insert-action="quotes" title="插入双引号" data-norefocus="true">""</button>
+                    <button type="button" id="input_parentheses_btn" class="qr--button menu_button" data-insert-action="parentheses" title="插入圆括号" data-norefocus="true">()</button>
+                    <button type="button" id="input_book_quotes1_btn" class="qr--button menu_button" data-insert-action="bookQuotes1" title="插入直角引号" data-norefocus="true">「」</button>
+                    <button type="button" id="input_book_quotes2_btn" class="qr--button menu_button" data-insert-action="bookQuotes2" title="插入直角引号" data-norefocus="true">『』</button>
+                    <button type="button" id="input_book_quotes3_btn" class="qr--button menu_button" data-insert-action="bookQuotes3" title="插入书名号" data-norefocus="true">《》</button>
+                    <button type="button" id="input_newline_btn" class="qr--button menu_button" data-insert-action="newline" title="移动到行末并插入换行" data-norefocus="true">⏎</button>
+                    <button type="button" id="input_user_btn" class="qr--button menu_button" data-insert-action="user" title="插入用户标记" data-norefocus="true">{{U}}</button>
+                    <button type="button" id="input_char_btn" class="qr--button menu_button" data-insert-action="char" title="插入角色标记" data-norefocus="true">{{C}}</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="settings">
+        <textarea id="settings_textarea" placeholder="settings textarea"></textarea>
+    </div>
+    <div id="world">
+        <textarea id="world_textarea" placeholder="world info textarea"></textarea>
+    </div>
+
+    <script>
+        // 模拟 SillyTavern 消息编辑器的生命周期（真实 ST 的 messageEdit/messageEditDone/messageEditCancel）。
+        window.st = {
+            openEditor(mesid, text) {
+                const mes = document.querySelector(`.mes[mesid="${mesid}"]`);
+                const mesText = mes.querySelector('.mes_text');
+                mes.dataset.originalText = text ?? mesText.textContent;
+                mesText.replaceChildren();
+
+                mes.querySelector('.mes_buttons').style.display = 'none';
+                mes.querySelector('.mes_edit_buttons').style.display = 'inline-flex';
+
+                const textarea = document.createElement('textarea');
+                textarea.id = 'curEditTextarea';
+                textarea.className = 'edit_textarea mdHotkeys';
+                textarea.value = mes.dataset.originalText;
+                mesText.append(textarea);
+                textarea.focus();
+                textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+                window.lastEditor = textarea;
+                return textarea;
+            },
+            finishEditor(mesid, mode, savedText) {
+                const mes = document.querySelector(`.mes[mesid="${mesid}"]`);
+                if (!mes) return null;
+                const textarea = mes.querySelector('#curEditTextarea');
+                const mesText = mes.querySelector('.mes_text');
+                const value = savedText ?? textarea?.value ?? '';
+                if (textarea) window.lastEditor = textarea;
+                mesText.replaceChildren();
+                mesText.textContent = mode === 'save' ? value : (mes.dataset.originalText || '');
+                mes.querySelector('.mes_buttons').style.display = '';
+                mes.querySelector('.mes_edit_buttons').style.display = 'none';
+                return textarea;
+            },
+            saveEditor(mesid, savedText) {
+                return this.finishEditor(mesid, 'save', savedText);
+            },
+            cancelEditor(mesid) {
+                return this.finishEditor(mesid, 'cancel');
+            },
+            removeMessage(mesid) {
+                document.querySelector(`.mes[mesid="${mesid}"]`)?.remove();
+            },
+        };
+    </script>
+
+    <script type="module">
+        import {
+            attachShortcutHandler,
+            attachToolbarHandlers,
+            createCustomSymbolButtonElement,
+            createTargetTracker,
+            insertByKey,
+        } from '../input-helper-core.js';
+
+        window.core = {
+            attachShortcutHandler,
+            attachToolbarHandlers,
+            createCustomSymbolButtonElement,
+            createTargetTracker,
+            insertByKey,
+        };
+
+        window.tracker = createTargetTracker(document);
+
+        window.insertWithSnapshot = (key, snapshot) => {
+            return insertByKey(snapshot, key, window.customSymbols);
+        };
+        window.insertFromTracker = (key) => {
+            const target = window.tracker.resolve();
+            return target ? insertByKey(target, key, window.customSymbols) : false;
+        };
+
+        attachToolbarHandlers(document.getElementById('input_helper_toolbar'), {
+            onActivate: (key) => window.insertFromTracker(key),
+        });
+
+        attachShortcutHandler(document, {
+            isEnabled: () => window.helperEnabled !== false,
+            getShortcuts: () => window.shortcuts,
+            resolveActiveTarget: () => window.tracker.resolveActive(),
+            onActivate: (key, snapshot) => window.insertWithSnapshot(key, snapshot),
+        });
+
+        window.__ready = true;
+    </script>
+</body>
+</html>
