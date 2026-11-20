@@ -443,3 +443,19 @@
     flex: 0 0 auto;
     touch-action: manipulation;
 }
+
+/* 折叠时释放输入栏空间，同时保留插件开关对工具栏的控制。 */
+#input_helper_toolbar.input-helper-collapsed {
+    display: none !important;
+}
+
+@media (pointer: coarse) and (prefers-reduced-motion: no-preference) {
+    #input_helper_toolbar:not(.input-helper-collapsed) {
+        animation: input-helper-expand 140ms ease-out;
+    }
+}
+
+@keyframes input-helper-expand {
+    from { opacity: 0; transform: translateY(0.35rem); }
+    to { opacity: 1; transform: translateY(0); }
+}

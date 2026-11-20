@@ -6,6 +6,7 @@ import {
     createCustomSymbolButtonElement,
     createTargetTracker,
     insertByKey,
+    isValidChatTarget,
     PRESET_INSERTIONS,
     getShortcutKeys,
 } from "./input-helper-core.js";
@@ -509,6 +510,56 @@ function showCustomSymbolDialog(existingSymbol = null, editIndex = -1) {
     });
 }
 
+// 部分手机收起键盘后仍保留 textarea 焦点，用可视区域恢复来识别这种情况。
+function attachMobileToolbar(toolbar) {
+    const mobile = window.matchMedia("(pointer: coarse)");
+    const viewport = window.visualViewport;
+    const height = () => viewport?.height ?? window.innerHeight;
+    let width = window.innerWidth;
+    let restingHeight = height();
+    let sawKeyboard = false;
+    let pressingToolbar = false;
+
+    function refresh() {
+        if (!mobile.matches) {
+            toolbar.classList.remove("input-helper-collapsed");
+            return;
+        }
+        if (width !== window.innerWidth) {
+            width = window.innerWidth;
+            restingHeight = height();
+            sawKeyboard = false;
+        }
+        if (pressingToolbar) return;
+        const active = document.activeElement;
+        const editing = isValidChatTarget(active) || toolbar.contains(active);
+        const currentHeight = height();
+        if (!editing) {
+            restingHeight = Math.max(restingHeight, currentHeight);
+            sawKeyboard = false;
+        }
+        const keyboardReducedHeight = restingHeight - currentHeight > 100;
+        if (editing && keyboardReducedHeight) sawKeyboard = true;
+        const expanded = editing && (!sawKeyboard || keyboardReducedHeight);
+        toolbar.classList.toggle("input-helper-collapsed", !expanded);
+    }
+
+    toolbar.addEventListener("pointerdown", () => { pressingToolbar = true; });
+    const release = () => {
+        if (!pressingToolbar) return;
+        pressingToolbar = false;
+        requestAnimationFrame(refresh);
+    };
+    document.addEventListener("pointerup", release, true);
+    document.addEventListener("pointercancel", release, true);
+    document.addEventListener("focusin", refresh);
+    document.addEventListener("focusout", () => requestAnimationFrame(refresh));
+    viewport?.addEventListener("resize", refresh);
+    window.addEventListener("resize", refresh);
+    mobile.addEventListener("change", refresh);
+    refresh();
+}
+
 // 初始化插件
 jQuery(async () => {
     // 加载HTML
@@ -529,7 +580,9 @@ jQuery(async () => {
 
     // 工具栏统一使用委托 click 绑定，桌面/移动端不再按 UA 分支，也不会 touchstart+click 重复插入。
     // 动态增删自定义按钮、横向滚动后都不需要重新绑定。
-    attachToolbarHandlers(document.getElementById("input_helper_toolbar"), {
+    const toolbar = document.getElementById("input_helper_toolbar");
+    attachMobileToolbar(toolbar);
+    attachToolbarHandlers(toolbar, {
         captureTarget: targetTracker.resolve,
         onActivate: (key, button, event, snapshot) => performInsertion(key, snapshot),
     });
