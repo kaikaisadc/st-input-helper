@@ -1,10 +1,4 @@
-// The main script for the extension
-// The following are examples of some basic extension functionality
-
-//You'll likely need to import extension_settings, getContext, and loadExtensionSettings from extensions.js
-import { extension_settings, getContext, loadExtensionSettings } from "../../../extensions.js";
-
-//You'll likely need to import some other functions from the main script
+import { extension_settings } from "../../../extensions.js";
 import { saveSettingsDebounced } from "../../../../script.js";
 import {
     attachShortcutHandler,
@@ -53,8 +47,6 @@ const defaultSettings = {
         'user',
         'char'
     ],
-    // 添加自定义符号设置
-    customSymbols: []
 };
 
 // 最近一次操作的合法聊天输入框/消息编辑框及其选区。
@@ -79,30 +71,16 @@ function performInsertion(key, snapshot = targetTracker.resolve()) {
 
 // 加载插件设置
 async function loadSettings() {
-    extension_settings[extensionName] = extension_settings[extensionName] || {};
-    if (Object.keys(extension_settings[extensionName]).length === 0) {
-        Object.assign(extension_settings[extensionName], defaultSettings);
+    const settings = extension_settings[extensionName] ||= {};
+    if (Object.keys(settings).length === 0) {
+        settings.enabled = defaultSettings.enabled;
     }
 
-    // 兼容旧版本设置
-    if (!extension_settings[extensionName].buttons) {
-        extension_settings[extensionName].buttons = defaultSettings.buttons;
-    }
-
-    // 兼容旧版本设置 - 快捷键
-    if (!extension_settings[extensionName].shortcuts) {
-        extension_settings[extensionName].shortcuts = defaultSettings.shortcuts;
-    }
-
-    // 兼容旧版本设置 - 按钮顺序
-    if (!extension_settings[extensionName].buttonOrder) {
-        extension_settings[extensionName].buttonOrder = defaultSettings.buttonOrder;
-    }
-
-    // 兼容旧版本设置 - 自定义符号
-    if (!extension_settings[extensionName].customSymbols) {
-        extension_settings[extensionName].customSymbols = [];
-    }
+    // 给旧版设置补齐缺失字段，每份配置使用独立的对象和数组。
+    settings.buttons ||= { ...defaultSettings.buttons };
+    settings.shortcuts ||= { ...defaultSettings.shortcuts };
+    settings.buttonOrder ||= [...defaultSettings.buttonOrder];
+    settings.customSymbols ||= [];
 
     // 更新UI中的设置
     $("#enable_input_helper").prop("checked", extension_settings[extensionName].enabled);
@@ -120,9 +98,8 @@ async function loadSettings() {
     $("#enable_char_btn").prop("checked", buttons.char !== false);
 
     // 更新快捷键设置
-    const shortcuts = extension_settings[extensionName].shortcuts;
-    for (const key in shortcuts) {
-        $(`#shortcut_${key}`).val(shortcuts[key] || "");
+    for (const [key, shortcut] of Object.entries(settings.shortcuts)) {
+        $(`#shortcut_${key}`).val(shortcut || "");
     }
 
     // 更新按钮顺序
@@ -158,7 +135,7 @@ function initSortable() {
                 handle: ".drag-handle",
                 axis: "y",
                 delay: 150,
-                stop: function() {
+                stop() {
                     // 获取新的排序
                     const newOrder = [];
                     $("#integrated_button_settings .integrated-button-row").each(function() {
@@ -293,7 +270,7 @@ function setupShortcutInputs() {
         e.preventDefault();
 
         // 获取按键组合
-        let keys = [];
+        const keys = [];
         if (e.ctrlKey) keys.push("Ctrl");
         if (e.altKey) keys.push("Alt");
         if (e.shiftKey) keys.push("Shift");
@@ -624,12 +601,12 @@ function showCustomSymbolDialog(existingSymbol = null, editIndex = -1) {
 
 
     // 取消按钮事件
-    $("#custom_symbol_cancel").on("click", function() {
+    $("#custom_symbol_cancel").on("click", () => {
         dialog.remove();
     });
 
     // 保存按钮事件
-    $("#custom_symbol_save").on("click", function() {
+    $("#custom_symbol_save").on("click", () => {
         const name = $("#custom_symbol_name").val().trim();
         const symbol = $("#custom_symbol_symbol").val();
         const display = $("#custom_symbol_display").val() || symbol;
@@ -647,10 +624,10 @@ function showCustomSymbolDialog(existingSymbol = null, editIndex = -1) {
 
         // 创建符号对象
         const symbolObj = {
-            name: name,
-            symbol: symbol,
-            display: display,
-            cursorPos: cursorPos
+            name,
+            symbol,
+            display,
+            cursorPos,
         };
 
         // 保存到设置
@@ -659,9 +636,7 @@ function showCustomSymbolDialog(existingSymbol = null, editIndex = -1) {
             extension_settings[extensionName].customSymbols[editIndex] = symbolObj;
         } else {
             // 添加新符号
-            if (!extension_settings[extensionName].customSymbols) {
-                extension_settings[extensionName].customSymbols = [];
-            }
+            extension_settings[extensionName].customSymbols ||= [];
             extension_settings[extensionName].customSymbols.push(symbolObj);
         }
 
@@ -687,7 +662,7 @@ jQuery(async () => {
 
     // 将工具栏插入到 #qr--bar 下方，并确保正确的视觉顺序
     const $qrBar = $("#qr--bar");
-    if ($qrBar.length == 0) {
+    if ($qrBar.length === 0) {
         $("#send_form").append(
             '<div class="flex-container flexGap5" id="qr--bar"></div>'
         );
@@ -738,12 +713,12 @@ jQuery(async () => {
     `);
 
     // 添加自定义符号按钮事件
-    $("#add_custom_symbol_btn").on("click", function() {
+    $("#add_custom_symbol_btn").on("click", () => {
         showCustomSymbolDialog();
     });
 
     // 注册自定义符号对话框键盘事件处理
-    $(document).on("keydown", function(e) {
+    $(document).on("keydown", (e) => {
         // 如果对话框正在显示且按下了Escape，关闭对话框
         if ($("#custom_symbol_dialog").length && e.key === "Escape") {
             $("#custom_symbol_dialog").remove();
