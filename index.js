@@ -66,12 +66,11 @@ const targetTracker = createTargetTracker(document);
  * @param {string} key 内置动作键或 custom_N
  * @param {object|null} [snapshot] 快捷键触发时的实时目标快照
  */
-function performInsertion(key, snapshot = null) {
+function performInsertion(key, snapshot = targetTracker.resolve()) {
     if (!extension_settings[extensionName]?.enabled) return false;
-    const target = snapshot || targetTracker.resolve();
-    if (!target) return false;
+    if (!snapshot) return false;
     return insertByKey(
-        target,
+        snapshot,
         key,
         extension_settings[extensionName].customSymbols || [],
     );
@@ -698,7 +697,8 @@ jQuery(async () => {
     // 工具栏统一使用委托 click 绑定，桌面/移动端不再按 UA 分支，也不会 touchstart+click 重复插入。
     // 动态增删自定义按钮、横向滚动后都不需要重新绑定。
     attachToolbarHandlers(document.getElementById("input_helper_toolbar"), {
-        onActivate: (key) => performInsertion(key),
+        captureTarget: targetTracker.resolve,
+        onActivate: (key, button, event, snapshot) => performInsertion(key, snapshot),
     });
 
     // 注册设置变更事件监听

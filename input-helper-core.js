@@ -4,13 +4,12 @@
  * 本模块不依赖 SillyTavern 或 jQuery，方便在宿主 stub 中加载真实代码做回归测试。
  * 目标只允许两类：
  *   1. 聊天底部输入框：#send_form 内的 #send_textarea / 兼容旧版 #prompt_textarea
- *   2. SillyTavern 消息编辑器：#chat .mes .mes_text 内动态创建的
- *      textarea#curEditTextarea.edit_textarea
+ *   2. SillyTavern 楼层内的消息正文和思考内容编辑框
  * 设置、世界书、角色卡等任意其他 textarea 永远不会被当作目标。
  */
 
 export const CHAT_MAIN_SELECTOR = '#send_form #send_textarea, #send_form #prompt_textarea';
-export const MESSAGE_EDITOR_SELECTOR = '#chat .mes .mes_text > textarea#curEditTextarea.edit_textarea';
+export const MESSAGE_EDITOR_SELECTOR = '#chat .mes textarea:is(#curEditTextarea, .edit_textarea, .reasoning_edit_textarea)';
 
 /**
  * 内置按钮的插入描述。cursorOffset 相对于插入文本的起点，长度 2 的成对符号为 1。
@@ -89,7 +88,7 @@ export function isValidChatTarget(element) {
 
 /** @param {ParentNode} [root] */
 export function findVisibleMessageEditor(root = document) {
-    for (const element of root.querySelectorAll('textarea#curEditTextarea.edit_textarea')) {
+    for (const element of root.querySelectorAll(MESSAGE_EDITOR_SELECTOR)) {
         if (isMessageEditor(element)) return element;
     }
     return null;
@@ -388,9 +387,9 @@ export function createCustomSymbolButtonElement(symbol, index) {
  * 只使用 click 作为唯一插入入口，触摸端不会因 touchstart + click 重复插入。
  * mousedown 阻止默认行为以尽量保持输入框焦点；触摸端不阻止默认行为，保留横向滚动。
  * @param {HTMLElement} toolbar
- * @param {{onActivate: (key: string, button: HTMLButtonElement, event: Event) => unknown, onError?: (error: unknown) => void}} options
+ * @param {{onActivate: (key: string, button: HTMLButtonElement, event: Event, snapshot?: object|null) => unknown, captureTarget?: () => object|null, onError?: (error: unknown) => void}} options
  */
-export function attachToolbarHandlers(toolbar, { onActivate, onError } = {}) {
+export function attachToolbarHandlers(toolbar, { onActivate, captureTarget, onError } = {}) {
     if (!toolbar || typeof onActivate !== 'function') return () => {};
 
     let gesture = null;
@@ -402,8 +401,16 @@ export function attachToolbarHandlers(toolbar, { onActivate, onError } = {}) {
 
     const onPointerDown = (event) => {
         const button = findButton(event);
-        if (!button) return;
-        gesture = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false };
+        gesture = null;
+        if (!button || event.button !== 0 || event.isPrimary === false) return;
+        gesture = {
+            button,
+            id: event.pointerId,
+            x: event.clientX,
+            y: event.clientY,
+            moved: false,
+            snapshot: captureTarget?.(),
+        };
     };
 
     const onPointerMove = (event) => {
@@ -411,12 +418,6 @@ export function attachToolbarHandlers(toolbar, { onActivate, onError } = {}) {
         if (Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) > 10) {
             gesture.moved = true;
         }
-    };
-
-    const onPointerUp = (event) => {
-        if (!gesture || event.pointerId !== gesture.id) return;
-        // 保留 gesture 供紧随其后的 click 判断是否为横向拖动；不在这里插入。
-        gesture.endedAt = Date.now();
     };
 
     const onPointerCancel = () => {
@@ -435,9 +436,9 @@ export function attachToolbarHandlers(toolbar, { onActivate, onError } = {}) {
 
         const currentGesture = gesture;
         gesture = null;
-        const isRecentDrag = currentGesture?.moved
-            && (!currentGesture.endedAt || Date.now() - currentGesture.endedAt < 750);
-        if (isRecentDrag) {
+        const fromPointer = event.detail > 0 && currentGesture?.button === button
+            && (event.pointerId == null || event.pointerId === currentGesture.id);
+        if (fromPointer && currentGesture.moved) {
             // 横向拖动工具栏后不插入。
             event.preventDefault();
             return;
@@ -447,7 +448,7 @@ export function attachToolbarHandlers(toolbar, { onActivate, onError } = {}) {
         if (!key) return;
         event.preventDefault();
         try {
-            onActivate(key, button, event);
+            onActivate(key, button, event, fromPointer ? currentGesture.snapshot : undefined);
         } catch (error) {
             console.error('[输入助手] 插入失败', error);
             onError?.(error);
@@ -456,7 +457,6 @@ export function attachToolbarHandlers(toolbar, { onActivate, onError } = {}) {
 
     toolbar.addEventListener('pointerdown', onPointerDown);
     toolbar.addEventListener('pointermove', onPointerMove);
-    toolbar.addEventListener('pointerup', onPointerUp);
     toolbar.addEventListener('pointercancel', onPointerCancel);
     toolbar.addEventListener('mousedown', onMouseDown);
     toolbar.addEventListener('click', onClick);
@@ -464,7 +464,6 @@ export function attachToolbarHandlers(toolbar, { onActivate, onError } = {}) {
     return () => {
         toolbar.removeEventListener('pointerdown', onPointerDown);
         toolbar.removeEventListener('pointermove', onPointerMove);
-        toolbar.removeEventListener('pointerup', onPointerUp);
         toolbar.removeEventListener('pointercancel', onPointerCancel);
         toolbar.removeEventListener('mousedown', onMouseDown);
         toolbar.removeEventListener('click', onClick);
