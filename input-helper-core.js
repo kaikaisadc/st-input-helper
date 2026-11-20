@@ -470,12 +470,7 @@ export function attachToolbarHandlers(toolbar, { onActivate, captureTarget, onEr
     };
 }
 
-/**
- * 由键盘事件生成与设置一致的组合字符串。
- * 例如 Ctrl+Alt+Q；只有修饰键或单键返回 null。
- * @param {KeyboardEvent} event
- */
-export function getShortcutCombination(event) {
+export function getShortcutKeys(event) {
     const keys = [];
     if (event.ctrlKey) keys.push('Ctrl');
     if (event.altKey) keys.push('Alt');
@@ -489,6 +484,16 @@ export function getShortcutCombination(event) {
         keys.push(keyName);
     }
 
+    return keys;
+}
+
+/**
+ * 由键盘事件生成与设置一致的组合字符串。
+ * 例如 Ctrl+Alt+Q；只有修饰键或单键返回 null。
+ * @param {KeyboardEvent} event
+ */
+export function getShortcutCombination(event) {
+    const keys = getShortcutKeys(event);
     if (keys.length <= 1 || keys.every(key => ['Ctrl', 'Alt', 'Shift'].includes(key))) {
         return null;
     }

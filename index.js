@@ -6,48 +6,14 @@ import {
     createCustomSymbolButtonElement,
     createTargetTracker,
     insertByKey,
+    PRESET_INSERTIONS,
+    getShortcutKeys,
 } from "./input-helper-core.js";
 
 // 设置插件名称和路径
 const extensionName = "st-input-helper";
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
-const defaultSettings = {
-    enabled: true,
-    buttons: {
-        asterisk: true,
-        quotes: true,
-        parentheses: true,
-        bookQuotes1: true,
-        bookQuotes2: true,
-        bookQuotes3: true, // 新增《》按钮设置
-        newline: true,
-        user: true,
-        char: true
-    },
-    shortcuts: {
-        asterisk: "",
-        quotes: "",
-        parentheses: "",
-        bookQuotes1: "",
-        bookQuotes2: "",
-        bookQuotes3: "",
-        newline: "",
-        user: "",
-        char: ""
-    },
-    // 添加默认的按钮顺序
-    buttonOrder: [
-        'asterisk',
-        'quotes',
-        'parentheses',
-        'bookQuotes1',
-        'bookQuotes2',
-        'bookQuotes3',
-        'newline',
-        'user',
-        'char'
-    ],
-};
+const builtinKeys = Object.keys(PRESET_INSERTIONS);
 
 // 最近一次操作的合法聊天输入框/消息编辑框及其选区。
 // 按钮导致焦点丢失时仍能写入正确目标；编辑器被保存、取消或删除后会自动失效。
@@ -70,42 +36,31 @@ function performInsertion(key, snapshot = targetTracker.resolve()) {
 
 
 // 加载插件设置
-async function loadSettings() {
+function loadSettings() {
     const settings = extension_settings[extensionName] ||= {};
     if (Object.keys(settings).length === 0) {
-        settings.enabled = defaultSettings.enabled;
+        settings.enabled = true;
     }
 
     // 给旧版设置补齐缺失字段，每份配置使用独立的对象和数组。
-    settings.buttons ||= { ...defaultSettings.buttons };
-    settings.shortcuts ||= { ...defaultSettings.shortcuts };
-    settings.buttonOrder ||= [...defaultSettings.buttonOrder];
+    settings.buttons ||= Object.fromEntries(builtinKeys.map(key => [key, true]));
+    settings.shortcuts ||= Object.fromEntries(builtinKeys.map(key => [key, ""]));
+    settings.buttonOrder ||= [...builtinKeys];
     settings.customSymbols ||= [];
 
     // 更新UI中的设置
     $("#enable_input_helper").prop("checked", extension_settings[extensionName].enabled);
 
     // 更新按钮显示设置
-    const buttons = extension_settings[extensionName].buttons;
-    $("#enable_asterisk_btn").prop("checked", buttons.asterisk !== false);
-    $("#enable_quotes_btn").prop("checked", buttons.quotes !== false);
-    $("#enable_parentheses_btn").prop("checked", buttons.parentheses !== false);
-    $("#enable_book_quotes1_btn").prop("checked", buttons.bookQuotes1 !== false);
-    $("#enable_book_quotes2_btn").prop("checked", buttons.bookQuotes2 !== false);
-    $("#enable_book_quotes3_btn").prop("checked", buttons.bookQuotes3 !== false); // 新增书名号按钮设置
-    $("#enable_newline_btn").prop("checked", buttons.newline !== false);
-    $("#enable_user_btn").prop("checked", buttons.user !== false);
-    $("#enable_char_btn").prop("checked", buttons.char !== false);
+    $("#integrated_button_settings .integrated-button-row").each(function() {
+        const key = this.dataset.buttonKey;
+        $(this).find("input[type=checkbox]").prop("checked", settings.buttons[key] !== false);
+    });
 
     // 更新快捷键设置
     for (const [key, shortcut] of Object.entries(settings.shortcuts)) {
         $(`#shortcut_${key}`).val(shortcut || "");
     }
-
-    // 更新按钮顺序
-    updateButtonsOrder();
-
-    updateButtonVisibility();
 
     // 加载自定义符号按钮
     loadCustomSymbolButtons();
@@ -167,76 +122,26 @@ function updateToolbarButtonOrder() {
     const toolbar = $("#input_helper_toolbar");
     if (toolbar.length === 0) return;
 
-    // 按照保存的顺序重新排列工具栏按钮
-    buttonOrder.forEach(key => {
-        // 防止空按钮ID
-        const buttonId = getButtonIdFromKey(key);
-        if (!buttonId) return;
-
-        const button = $(`#${buttonId}`);
-        if (button.length && extension_settings[extensionName].buttons[key] !== false) {
-            toolbar.append(button);
-        }
+    const buttons = new Map();
+    toolbar.find("button[data-insert-action]").each(function() {
+        buttons.set(this.dataset.insertAction, this);
     });
-}
-
-// 从按钮键名获取按钮ID
-function getButtonIdFromKey(key) {
-    // 检查是否是自定义按钮
-    if (key.startsWith('custom_')) {
-        // 直接返回自定义按钮的ID
-        const index = key.replace('custom_', '');
-        return `input_custom_${index}_btn`;
+    for (const key of buttonOrder) {
+        const button = buttons.get(key);
+        if (button) toolbar.append(button);
     }
-
-    // 预定义按钮的映射
-    const keyToId = {
-        'asterisk': 'input_asterisk_btn',
-        'quotes': 'input_quotes_btn',
-        'parentheses': 'input_parentheses_btn',
-        'bookQuotes1': 'input_book_quotes1_btn',
-        'bookQuotes2': 'input_book_quotes2_btn',
-        'bookQuotes3': 'input_book_quotes3_btn',
-        'newline': 'input_newline_btn',
-        'user': 'input_user_btn',
-        'char': 'input_char_btn'
-    };
-
-    return keyToId[key] || '';
 }
 
-// 更新按钮可见性
 function updateButtonVisibility() {
-    const buttons = extension_settings[extensionName].buttons;
-
-    // 根据设置显示/隐藏按钮
-    $("#input_asterisk_btn").toggle(buttons.asterisk !== false);
-    $("#input_quotes_btn").toggle(buttons.quotes !== false);
-    $("#input_parentheses_btn").toggle(buttons.parentheses !== false);
-    $("#input_book_quotes1_btn").toggle(buttons.bookQuotes1 !== false);
-    $("#input_book_quotes2_btn").toggle(buttons.bookQuotes2 !== false);
-    $("#input_book_quotes3_btn").toggle(buttons.bookQuotes3 !== false); // 新增书名号按钮
-    $("#input_newline_btn").toggle(buttons.newline !== false);
-    $("#input_user_btn").toggle(buttons.user !== false);
-    $("#input_char_btn").toggle(buttons.char !== false);
-
-    // 更新自定义按钮的显示/隐藏
-    const customSymbols = extension_settings[extensionName].customSymbols || [];
-    customSymbols.forEach((symbol, index) => {
-        const buttonKey = `custom_${index}`;
-        $(`#input_custom_${index}_btn`).toggle(buttons[buttonKey] !== false);
+    const { buttons, enabled } = extension_settings[extensionName];
+    const toolbar = $("#input_helper_toolbar");
+    let anyVisible = false;
+    toolbar.find("button[data-insert-action]").each(function() {
+        const visible = buttons[this.dataset.insertAction] !== false;
+        $(this).toggle(visible);
+        if (visible) anyVisible = true;
     });
-
-    // 检查所有按钮是否都被隐藏，如果是则隐藏整个工具栏
-    const allHidden = Object.values(buttons).every(v => v === false);
-    if (allHidden) {
-        $("#input_helper_toolbar").hide();
-    } else if (extension_settings[extensionName].enabled) {
-        $("#input_helper_toolbar").show();
-
-        // 更新按钮顺序
-        updateToolbarButtonOrder();
-    }
+    toolbar.toggle(Boolean(enabled && anyVisible));
 }
 
 // 开关设置变更响应
@@ -245,84 +150,40 @@ function onEnableInputChange() {
     extension_settings[extensionName].enabled = value;
     saveSettingsDebounced();
 
-    // 根据复选框状态显示或隐藏工具栏
-    if (value) {
-        updateButtonVisibility();
-    } else {
-        $("#input_helper_toolbar").hide();
-    }
-}
-
-// 按钮显示设置变更响应
-function onButtonVisibilityChange(buttonKey) {
-    return function() {
-        const checked = $(this).prop("checked");
-        extension_settings[extensionName].buttons[buttonKey] = checked;
-        saveSettingsDebounced();
-        updateButtonVisibility();
-    };
+    updateButtonVisibility();
 }
 
 // 处理快捷键设置（委托绑定一次，自定义符号动态增删不会重复绑定）
 function setupShortcutInputs() {
     // 处理快捷键输入
-    $(document).on("keydown", ".shortcut-input", function(e) {
+    $("#integrated_button_settings").on("keydown", ".shortcut-input", function(e) {
         e.preventDefault();
 
-        // 获取按键组合
-        const keys = [];
-        if (e.ctrlKey) keys.push("Ctrl");
-        if (e.altKey) keys.push("Alt");
-        if (e.shiftKey) keys.push("Shift");
-
-        // 添加主键（如果不是修饰键）
-        if (
-            e.key !== "Control" &&
-            e.key !== "Alt" &&
-            e.key !== "Shift" &&
-            e.key !== "Meta" &&
-            e.key !== "Escape"
-        ) {
-            const keyName = e.key && typeof e.key === 'string' && e.key.length === 1
-                ? e.key.toUpperCase()
-                : (e.key || "Unknown");
-            keys.push(keyName);
-        }
-
-        // 如果只按了Escape键，清除快捷键
         if (e.key === "Escape") {
-            $(this).val("");
-            const shortcutKey = $(this).attr("id").replace("shortcut_", "");
-            extension_settings[extensionName].shortcuts[shortcutKey] = "";
-            saveSettingsDebounced();
+            saveShortcut(this, "");
             return;
         }
+        const keys = getShortcutKeys(e);
 
         // 如果没有按键组合或只有修饰键，不设置
         if (keys.length === 0 || (keys.length === 1 && ["Ctrl", "Alt", "Shift"].includes(keys[0]))) {
             return;
         }
 
-        // 设置快捷键
-        const shortcutString = keys.join("+");
-        $(this).val(shortcutString);
-
-        // 保存到设置
-        const shortcutKey = $(this).attr("id").replace("shortcut_", "");
-        extension_settings[extensionName].shortcuts[shortcutKey] = shortcutString;
-        saveSettingsDebounced();
+        saveShortcut(this, keys.join("+"));
     });
 
-    // 处理清除按钮
-    $(document).on("click", ".shortcut-clear-btn", function() {
-        const targetId = $(this).data("target");
-        $(`#${targetId}`).val("");
-
-        // 保存到设置
-        const shortcutKey = targetId.replace("shortcut_", "");
-        extension_settings[extensionName].shortcuts[shortcutKey] = "";
-        saveSettingsDebounced();
+    $("#integrated_button_settings").on("click", ".shortcut-clear-btn", function() {
+        const input = document.getElementById(this.dataset.target);
+        if (input) saveShortcut(input, "");
     });
+}
+
+function saveShortcut(input, shortcut) {
+    input.value = shortcut;
+    const key = input.closest(".integrated-button-row").dataset.buttonKey;
+    extension_settings[extensionName].shortcuts[key] = shortcut;
+    saveSettingsDebounced();
 }
 
 // 注册全局快捷键：只在合法聊天框聚焦且非输入法组合状态时触发
@@ -373,6 +234,7 @@ function loadCustomSymbolButtons() {
     // 更新按钮顺序。工具栏事件是委托绑定，新增按钮无需再次绑定。
     updateButtonsOrder();
     updateToolbarButtonOrder();
+    updateButtonVisibility();
 }
 
 // 创建自定义符号按钮（名称/显示文本通过 DOM 属性写入，避免 HTML 注入）
@@ -453,7 +315,6 @@ function createCustomSymbolSetting(symbol, index) {
     $("#integrated_button_settings").append(row);
 
     // 添加事件监听
-    row.find(`#${checkboxId}`).on("input", onButtonVisibilityChange(buttonKey));
     row.find(".custom-edit-btn").on("click", function() {
         editCustomSymbol($(this).data("index"));
     });
@@ -522,9 +383,6 @@ function deleteCustomSymbol(index) {
 
         // 重新加载自定义按钮 - 这会导致索引重排。工具栏使用委托事件，无需重新绑定。
         loadCustomSymbolButtons();
-
-        // 更新工具栏
-        updateButtonVisibility();
     }
 }
 
@@ -678,18 +536,14 @@ jQuery(async () => {
 
     // 注册设置变更事件监听
     $("#enable_input_helper").on("input", onEnableInputChange);
-    $("#enable_asterisk_btn").on("input", onButtonVisibilityChange("asterisk"));
-    $("#enable_quotes_btn").on("input", onButtonVisibilityChange("quotes"));
-    $("#enable_parentheses_btn").on("input", onButtonVisibilityChange("parentheses"));
-    $("#enable_book_quotes1_btn").on("input", onButtonVisibilityChange("bookQuotes1"));
-    $("#enable_book_quotes2_btn").on("input", onButtonVisibilityChange("bookQuotes2"));
-    $("#enable_book_quotes3_btn").on("input", onButtonVisibilityChange("bookQuotes3"));
-    $("#enable_newline_btn").on("input", onButtonVisibilityChange("newline"));
-    $("#enable_user_btn").on("input", onButtonVisibilityChange("user"));
-    $("#enable_char_btn").on("input", onButtonVisibilityChange("char"));
+    $("#integrated_button_settings").on("input", "input[type=checkbox]", function() {
+        const key = this.closest(".integrated-button-row").dataset.buttonKey;
+        extension_settings[extensionName].buttons[key] = this.checked;
+        saveSettingsDebounced();
+        updateButtonVisibility();
+    });
 
-    // 加载设置
-    await loadSettings();
+    loadSettings();
 
     // 设置快捷键输入框
     setupShortcutInputs();
@@ -699,11 +553,6 @@ jQuery(async () => {
 
     // 注册全局快捷键事件（内部只认合法聊天框，且跳过 IME composition）
     setupGlobalShortcuts();
-
-    // 根据初始化设置显示或隐藏工具栏
-    if (!extension_settings[extensionName].enabled) {
-        $("#input_helper_toolbar").hide();
-    }
 
     // 添加添加自定义符号按钮
     $("#integrated_button_settings").after(`
