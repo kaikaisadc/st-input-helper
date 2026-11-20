@@ -428,9 +428,10 @@
 }
 
 /* 工具栏横向滚动：窄屏/自定义按钮较多时保持单行，可左右滑动 */
-#input_helper_toolbar {
+#qr--bar > #input_helper_toolbar {
     display: flex;
-    flex-wrap: nowrap;
+    flex-flow: row nowrap;
+    min-width: 0;
     max-width: 100%;
     overflow-x: auto;
     overflow-y: hidden;
@@ -442,9 +443,12 @@
 #input_helper_toolbar > button {
     flex: 0 0 auto;
     touch-action: manipulation;
+    white-space: nowrap;
+    writing-mode: horizontal-tb;
 }
 
 /* 折叠时释放输入栏空间，同时保留插件开关对工具栏的控制。 */
+#input_helper_toolbar[hidden],
 #input_helper_toolbar.input-helper-collapsed {
     display: none !important;
 }

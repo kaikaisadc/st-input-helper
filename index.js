@@ -142,7 +142,7 @@ function updateButtonVisibility() {
         $(this).toggle(visible);
         if (visible) anyVisible = true;
     });
-    toolbar.toggle(Boolean(enabled && anyVisible));
+    toolbar.prop("hidden", !(enabled && anyVisible));
 }
 
 // 开关设置变更响应
